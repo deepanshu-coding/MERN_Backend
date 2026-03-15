@@ -4,7 +4,7 @@
   "description": "SoulLink Co. Quantitative Hedge Fund - Backend API",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node server.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/utils/seed.js"
   },
