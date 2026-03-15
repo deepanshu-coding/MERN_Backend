@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: soullink-api
+    runtime: node
+    plan: free          # upgrade to starter/standard for production
+    region: singapore   # closest to India — change to oregon / frankfurt if needed
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000          # Render uses 10000 by default
+      - key: MONGODB_URI
+        sync: false           # Set manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true   # Render auto-generates a secure random value
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+      - key: ADMIN_SECRET
+        sync: false           # Set manually in Render dashboard
+      - key: FRONTEND_URL
+        sync: false           # e.g. https://soullink.pages.dev
+      - key: FRONTEND_URL_ALT
+        sync: false           # e.g. https://soullinkco.com
+      - key: OTP_EXPIRY_MINUTES
+        value: 10
+      - key: OTP_LENGTH
+        value: 6
+      # Email (set manually in Render dashboard — never commit credentials)
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Twilio (optional — set if using SMS OTP)
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
