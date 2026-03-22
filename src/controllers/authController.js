@@ -4,6 +4,26 @@ const { generateOTP, sendOTPEmail, sendOTPSMS } = require('../utils/otpService')
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const logger = require('../utils/logger');
 
+// In routes/auth.js — add this route
+router.post('/login', [
+  body('identifier').trim().notEmpty().withMessage('Aadhaar or User ID required'),
+  body('password').notEmpty().withMessage('Password required'),
+], validate, login);
+
+// In controllers/authController.js — add this function
+exports.login = async (req, res) => {
+  const { identifier, password } = req.body;
+  // find user by aadhaarNumber or _id
+  const user = await User.findOne({
+    $or: [{ aadhaarNumber: identifier }, { _id: identifier }]
+  }).select('+password');
+  if (!user || !(await user.matchPassword(password))) {
+    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  }
+  const token = user.getSignedJwtToken(); // or however you generate tokens
+  res.json({ success: true, token, user: { fullName: user.fullName, _id: user._id } });
+};
+
 // ── POST /api/auth/signup ────────────────────────────────────
 exports.signup = async (req, res, next) => {
   try {
