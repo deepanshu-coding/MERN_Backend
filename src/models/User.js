@@ -10,10 +10,18 @@ const bankDetailsSchema = new mongoose.Schema({
 
 const userSchema = new mongoose.Schema({
   // ── Basic Info ───────────────────────────────────────
-  fullName:   { type: String, required: true, trim: true, maxlength: 120 },
-  email:      { type: String, required: true, unique: true, trim: true, lowercase: true },
-  mobile:     { type: String, required: true, unique: true, trim: true, maxlength: 15 },
+  fullName:    { type: String, required: true, trim: true, maxlength: 120 },
+  email:       { type: String, required: true, unique: true, trim: true, lowercase: true },
+  mobile:      { type: String, required: true, unique: true, trim: true, maxlength: 15 },
   dateOfBirth: { type: Date },
+
+  // ── Password ─────────────────────────────────────────
+  password: {
+    type: String,
+    required: [true, 'Password is required'],
+    minlength: [8, 'Password must be at least 8 characters'],
+    select: false,   // never returned in queries by default
+  },
 
   // ── KYC ─────────────────────────────────────────────
   aadhaarNumber: {
@@ -21,7 +29,7 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true,
     trim: true,
-    select: false,           // never returned in queries by default
+    select: false,
     maxlength: 12,
   },
   panNumber: {
@@ -49,34 +57,31 @@ const userSchema = new mongoose.Schema({
     default: 'pending',
   },
   kycRejectionReason: { type: String },
-  isActive: { type: Boolean, default: true },
+  isActive:        { type: Boolean, default: true },
   isEmailVerified: { type: Boolean, default: false },
 
   // ── OTP ──────────────────────────────────────────────
-  otp:        { type: String, select: false },
-  otpExpiry:  { type: Date,   select: false },
-  otpAttempts:{ type: Number, default: 0, select: false },
+  otp:         { type: String,  select: false },
+  otpExpiry:   { type: Date,    select: false },
+  otpAttempts: { type: Number,  default: 0, select: false },
 
   // ── Refresh Token ─────────────────────────────────────
   refreshToken: { type: String, select: false },
 
   // ── Portfolio Summary (denormalised) ─────────────────
-  totalInvested:  { type: Number, default: 0 },
-  totalEarnings:  { type: Number, default: 0 },
-  currentValue:   { type: Number, default: 0 },
+  totalInvested: { type: Number, default: 0 },
+  totalEarnings: { type: Number, default: 0 },
+  currentValue:  { type: Number, default: 0 },
 
   // ── Meta ─────────────────────────────────────────────
   lastLogin: { type: Date },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
 }, {
   timestamps: true,
-  toJSON: { virtuals: true },
+  toJSON:   { virtuals: true },
   toObject: { virtuals: true },
 });
 
 // ── Indexes ──────────────────────────────────────────────────
-//--userSchema.index({ mobile: 1 });--
 userSchema.index({ kycStatus: 1 });
 userSchema.index({ role: 1 });
 
@@ -86,17 +91,25 @@ userSchema.virtual('roi').get(function () {
   return ((this.totalEarnings / this.totalInvested) * 100).toFixed(2);
 });
 
-// ── Pre-save middleware ───────────────────────────────────────
-userSchema.pre('save', function (next) {
-  this.updatedAt = new Date();
+// ── Pre-save: hash password if modified ──────────────────────
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+  const salt = await bcrypt.genSalt(12);
+  this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
 // ── Instance Methods ─────────────────────────────────────────
+
+// Compare entered password with hashed password in DB
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
+
 userSchema.methods.setOTP = function (otp) {
   const mins = parseInt(process.env.OTP_EXPIRY_MINUTES || '10');
-  this.otp       = otp;
-  this.otpExpiry = new Date(Date.now() + mins * 60 * 1000);
+  this.otp         = otp;
+  this.otpExpiry   = new Date(Date.now() + mins * 60 * 1000);
   this.otpAttempts = 0;
 };
 
@@ -105,29 +118,29 @@ userSchema.methods.isOTPValid = function (otp) {
 };
 
 userSchema.methods.clearOTP = function () {
-  this.otp        = undefined;
-  this.otpExpiry  = undefined;
+  this.otp         = undefined;
+  this.otpExpiry   = undefined;
   this.otpAttempts = 0;
 };
 
-// Safe public profile (no sensitive fields)
+// Safe public profile — no sensitive fields
 userSchema.methods.toPublicProfile = function () {
   return {
-    id:             this._id,
-    fullName:       this.fullName,
-    email:          this.email,
-    mobile:         this.mobile,
-    dateOfBirth:    this.dateOfBirth,
-    role:           this.role,
-    kycStatus:      this.kycStatus,
-    isActive:       this.isActive,
-    bankDetails:    this.bankDetails,
-    totalInvested:  this.totalInvested,
-    totalEarnings:  this.totalEarnings,
-    currentValue:   this.currentValue,
-    roi:            this.roi,
-    lastLogin:      this.lastLogin,
-    createdAt:      this.createdAt,
+    id:            this._id,
+    fullName:      this.fullName,
+    email:         this.email,
+    mobile:        this.mobile,
+    dateOfBirth:   this.dateOfBirth,
+    role:          this.role,
+    kycStatus:     this.kycStatus,
+    isActive:      this.isActive,
+    bankDetails:   this.bankDetails,
+    totalInvested: this.totalInvested,
+    totalEarnings: this.totalEarnings,
+    currentValue:  this.currentValue,
+    roi:           this.roi,
+    lastLogin:     this.lastLogin,
+    createdAt:     this.createdAt,
   };
 };
 
