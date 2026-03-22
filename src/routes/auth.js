@@ -31,6 +31,7 @@ router.post('/signup', [
   body('bankDetails.accountNumber').optional().trim().notEmpty(),
   body('bankDetails.ifscCode').optional().trim().matches(/^[A-Z]{4}0[A-Z0-9]{6}$/).withMessage('Valid IFSC code required'),
   body('bankDetails.accountHolderName').optional().trim().notEmpty(),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
 ], validate, signup);
 
 // ── POST /api/auth/send-otp ──────────────────────────────────
