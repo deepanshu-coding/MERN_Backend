@@ -76,7 +76,7 @@ const userSchema = new mongoose.Schema({
 });
 
 // ── Indexes ──────────────────────────────────────────────────
-userSchema.index({ mobile: 1 });
+//--userSchema.index({ mobile: 1 });--
 userSchema.index({ kycStatus: 1 });
 userSchema.index({ role: 1 });
 
