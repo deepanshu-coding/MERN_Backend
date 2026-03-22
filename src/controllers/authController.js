@@ -59,7 +59,7 @@ exports.signup = async (req, res, next) => {
   try {
     const {
       fullName, email, mobile, dateOfBirth,
-      aadhaarNumber, panNumber, bankDetails,
+      aadhaarNumber, panNumber, bankDetails, password,
     } = req.body;
 
     // Check existing
@@ -83,6 +83,7 @@ exports.signup = async (req, res, next) => {
       aadhaarNumber,
       panNumber: panNumber.toUpperCase(),
       bankDetails,
+      password,   // hashed automatically by pre-save hook in User model
     });
 
     // Send welcome email (non-blocking)
