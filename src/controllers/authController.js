@@ -9,13 +9,12 @@ exports.login = async (req, res, next) => {
   try {
     const { identifier, password } = req.body;
 
-    // Find user by aadhaarNumber or userId
-    const user = await User.findOne({
-      $or: [
-        { aadhaarNumber: identifier },
-        { _id: identifier.match(/^[0-9a-fA-F]{24}$/) ? identifier : null },
-      ],
-    }).select('+password +refreshToken');
+    // Determine if identifier is a MongoDB ObjectId or an Aadhaar number
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(identifier || '');
+    const query = isObjectId ? { _id: identifier } : { aadhaarNumber: identifier };
+
+    // aadhaarNumber and password both have select:false — must explicitly include them
+    const user = await User.findOne(query).select('+password +refreshToken +aadhaarNumber');
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'No account found with this Aadhaar / User ID.' });
@@ -24,20 +23,17 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Account is deactivated. Contact support.' });
     }
 
-    // Compare password (uses bcrypt via User model method)
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid password.' });
     }
 
-    // Update last login & refresh token
     user.lastLogin = new Date();
     const refreshTok = generateRefreshToken(user._id);
     user.refreshToken = refreshTok;
     await user.save();
 
     const accessToken = generateAccessToken(user._id, user.role);
-
     logger.info(`User logged in via password: ${user._id}`);
 
     res.json({
@@ -62,7 +58,6 @@ exports.signup = async (req, res, next) => {
       aadhaarNumber, panNumber, bankDetails, password,
     } = req.body;
 
-    // Check existing
     const existing = await User.findOne({
       $or: [{ email }, { mobile }, { aadhaarNumber }, { panNumber }],
     }).select('email mobile aadhaarNumber panNumber');
@@ -83,17 +78,15 @@ exports.signup = async (req, res, next) => {
       aadhaarNumber,
       panNumber: panNumber.toUpperCase(),
       bankDetails,
-      password,   // hashed automatically by pre-save hook in User model
+      password, // hashed by pre-save hook in User model
     });
 
-    // Send welcome email (non-blocking)
     sendOTPEmail(email, '------', fullName).catch(() => {});
-
     logger.info(`New user registered: ${user._id} (${email})`);
 
     res.status(201).json({
       success: true,
-      message: "Account created successfully. KYC verification is in progress — we'll notify you shortly.",
+      message: "Account created successfully. KYC verification is in progress.",
       data: { userId: user._id, kycStatus: user.kycStatus },
     });
   } catch (error) {
@@ -108,13 +101,10 @@ exports.sendOTP = async (req, res, next) => {
 
     const user = await User.findOne({ aadhaarNumber }).select('+aadhaarNumber');
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'No account found with this Aadhaar number. Please sign up first.',
-      });
+      return res.status(404).json({ success: false, message: 'No account found with this Aadhaar number.' });
     }
     if (!user.isActive) {
-      return res.status(401).json({ success: false, message: 'Account is deactivated. Contact support.' });
+      return res.status(401).json({ success: false, message: 'Account is deactivated.' });
     }
 
     const recentOTPs = await OtpSession.countDocuments({
@@ -122,10 +112,7 @@ exports.sendOTP = async (req, res, next) => {
       createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) },
     });
     if (recentOTPs >= 5) {
-      return res.status(429).json({
-        success: false,
-        message: 'Too many OTP requests. Please wait 15 minutes.',
-      });
+      return res.status(429).json({ success: false, message: 'Too many OTP requests. Wait 15 minutes.' });
     }
 
     const otp    = generateOTP(parseInt(process.env.OTP_LENGTH || '6'));
@@ -171,7 +158,7 @@ exports.verifyOTP = async (req, res, next) => {
     }
     if (session.expiry < new Date()) {
       await OtpSession.deleteOne({ _id: session._id });
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+      return res.status(400).json({ success: false, message: 'OTP expired. Please request a new one.' });
     }
     if (session.attempts >= 5) {
       await OtpSession.deleteOne({ _id: session._id });
