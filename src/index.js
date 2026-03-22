@@ -36,16 +36,25 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5500',
   'http://127.0.0.1:5500',
-];
-app.use(cors({
+  'null',          // allows file:/// local testing (origin = "null")
+].filter(Boolean); // removes undefined entries if env vars not set
+
+const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    // allow requests with no origin (Postman, curl, mobile apps)
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    logger.warn(`CORS blocked origin: ${origin}`);
     cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // ← CRITICAL: handle all preflight requests
 
 // ─── Rate Limiting ────────────────────────────────────────────
 const globalLimiter = rateLimit({
